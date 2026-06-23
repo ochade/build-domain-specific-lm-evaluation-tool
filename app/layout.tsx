@@ -10,8 +10,9 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'v0 App',
-  description: 'Created with v0',
+  title: 'Adjudica — Agent-as-Judge for domain-specific LMs',
+  description:
+    'Adjudica is an agent-as-judge evaluation platform that maps a domain\u2019s reasoning structure, verifies factuality claim-by-claim, scores specificity, catches hallucinations, and recommends improvements for domain-specific language models.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -46,7 +47,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-background`}>
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
