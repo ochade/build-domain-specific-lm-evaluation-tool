@@ -323,6 +323,55 @@ export const trend = [
   { run: "v0.4.2", factuality: 82, specificity: 68 },
 ]
 
+export interface RunSummary {
+  id: string
+  version: string
+  date: string
+  factuality: number
+  specificity: number
+  hallucinationRate: number
+  agreement: number
+  claimCounts: { supported: number; hallucinated: number; unsupported: number; "retrieval-gap": number }
+  stageCoverage: Record<string, number> // stageId -> coverage
+}
+
+// Historical runs of CardioScribe across versions, for multi-run comparison.
+export const runs: RunSummary[] = [
+  {
+    id: "run_3a91",
+    version: "v0.4.0",
+    date: "2026-06-09",
+    factuality: 76,
+    specificity: 66,
+    hallucinationRate: 21,
+    agreement: 86,
+    claimCounts: { supported: 4, hallucinated: 2, unsupported: 1, "retrieval-gap": 1 },
+    stageCoverage: { triage: 92, diagnostics: 70, intervention: 75, contraindications: 30, disposition: 55 },
+  },
+  {
+    id: "run_6c4d",
+    version: "v0.4.1",
+    date: "2026-06-16",
+    factuality: 78,
+    specificity: 71,
+    hallucinationRate: 17,
+    agreement: 89,
+    claimCounts: { supported: 5, hallucinated: 1, unsupported: 1, "retrieval-gap": 1 },
+    stageCoverage: { triage: 94, diagnostics: 74, intervention: 80, contraindications: 36, disposition: 60 },
+  },
+  {
+    id: "run_8f2c1a",
+    version: "v0.4.2",
+    date: "2026-06-23",
+    factuality: 82,
+    specificity: 68,
+    hallucinationRate: 12,
+    agreement: 91,
+    claimCounts: { supported: 4, hallucinated: 1, unsupported: 1, "retrieval-gap": 1 },
+    stageCoverage: { triage: 95, diagnostics: 78, intervention: 84, contraindications: 41, disposition: 62 },
+  },
+]
+
 export const verdictMeta: Record<
   Verdict,
   { label: string; tone: "success" | "warning" | "destructive" | "muted" }

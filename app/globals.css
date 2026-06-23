@@ -105,3 +105,9 @@
     @apply font-sans;
   }
 }
+
+@layer components {
+  .input {
+    @apply w-full rounded-md border border-input bg-secondary/40 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground outline-none transition-colors focus:border-ring focus:bg-secondary/60;
+  }
+}
