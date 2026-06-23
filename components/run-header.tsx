@@ -1,5 +1,6 @@
+import Link from "next/link"
 import { evaluation } from "@/lib/data"
-import { Stethoscope, Clock, GitBranch, ShieldCheck, RefreshCw } from "lucide-react"
+import { Stethoscope, Clock, GitBranch, ShieldCheck, RefreshCw, GitCompare } from "lucide-react"
 
 export function RunHeader() {
   return (
@@ -34,12 +35,18 @@ export function RunHeader() {
         </div>
       </div>
       <div className="flex items-center gap-2">
-        <button className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary">
-          <RefreshCw className="size-4" /> Re-run judge
-        </button>
-        <button className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90">
-          Export report
-        </button>
+        <Link
+          href="/compare"
+          className="inline-flex items-center gap-2 rounded-md border border-border px-3 py-2 text-sm font-medium text-foreground transition-colors hover:bg-secondary"
+        >
+          <GitCompare className="size-4" /> Compare runs
+        </Link>
+        <Link
+          href="/evaluate"
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-3 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
+        >
+          <RefreshCw className="size-4" /> Run live judge
+        </Link>
       </div>
     </div>
   )

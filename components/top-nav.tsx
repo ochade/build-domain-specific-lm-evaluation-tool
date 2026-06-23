@@ -1,18 +1,29 @@
+"use client"
+
 import { Gavel, ChevronDown, Search, Bell } from "lucide-react"
+import { usePathname } from "next/navigation"
+import Link from "next/link"
 import { evaluation } from "@/lib/data"
 
-const tabs = ["Evaluations", "Domains", "Datasets", "Judges", "Reports"]
+const tabs = [
+  { label: "Evaluations", href: "/" },
+  { label: "New Evaluation", href: "/evaluate" },
+  { label: "Compare", href: "/compare" },
+  { label: "Onboard Domain", href: "/onboarding" },
+]
 
 export function TopNav() {
+  const pathname = usePathname()
+
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
       <div className="flex h-14 items-center gap-4 px-4 lg:px-6">
-        <div className="flex items-center gap-2.5">
+        <Link href="/" className="flex items-center gap-2.5">
           <div className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
             <Gavel className="size-4" />
           </div>
           <span className="text-sm font-semibold tracking-tight">Adjudica</span>
-        </div>
+        </Link>
 
         <div className="hidden items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground md:flex">
           {evaluation.vendor}
@@ -20,19 +31,22 @@ export function TopNav() {
         </div>
 
         <nav className="ml-2 hidden items-center gap-1 lg:flex">
-          {tabs.map((tab, i) => (
-            <a
-              key={tab}
-              href="#"
-              className={
-                i === 0
-                  ? "rounded-md bg-secondary px-3 py-1.5 text-sm font-medium text-foreground"
-                  : "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
-              }
-            >
-              {tab}
-            </a>
-          ))}
+          {tabs.map((tab) => {
+            const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href)
+            return (
+              <Link
+                key={tab.label}
+                href={tab.href}
+                className={
+                  active
+                    ? "rounded-md bg-secondary px-3 py-1.5 text-sm font-medium text-foreground"
+                    : "rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+                }
+              >
+                {tab.label}
+              </Link>
+            )
+          })}
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
@@ -47,10 +61,7 @@ export function TopNav() {
           >
             <Bell className="size-4" />
           </button>
-          <div
-            className="size-8 rounded-full bg-gradient-to-br from-primary/80 to-chart-4/80"
-            aria-label="Account"
-          />
+          <div className="size-8 rounded-full bg-gradient-to-br from-primary/80 to-chart-2/80" aria-label="Account" />
         </div>
       </div>
     </header>
