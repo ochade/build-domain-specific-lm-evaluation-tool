@@ -1,4 +1,4 @@
-import { domainStages } from "@/lib/data"
+import type { DomainStage } from "@/lib/data"
 import { cn } from "@/lib/utils"
 import { Check, Minus, AlertTriangle } from "lucide-react"
 
@@ -12,7 +12,7 @@ function barTone(status: keyof typeof statusMeta) {
   return status === "strong" ? "bg-success" : status === "partial" ? "bg-warning" : "bg-destructive"
 }
 
-export function DomainMap() {
+export function DomainMap({ stages }: { stages: DomainStage[] }) {
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
@@ -21,16 +21,16 @@ export function DomainMap() {
           <p className="text-xs text-muted-foreground">Derived from the vendor&apos;s declared specificity spec</p>
         </div>
         <span className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-[11px] text-muted-foreground">
-          5 stages
+          {stages.length} stages
         </span>
       </div>
 
       <ol className="p-4">
-        {domainStages.map((stage, i) => {
+        {stages.map((stage, i) => {
           const meta = statusMeta[stage.status]
           return (
             <li key={stage.id} className="relative flex gap-3 pb-5 last:pb-0">
-              {i < domainStages.length - 1 && (
+              {i < stages.length - 1 && (
                 <span className="absolute left-[15px] top-8 h-[calc(100%-1rem)] w-px bg-border" aria-hidden />
               )}
               <div

@@ -1,36 +1,44 @@
 import Link from "next/link"
-import { evaluation } from "@/lib/data"
-import { Stethoscope, Clock, GitBranch, ShieldCheck, RefreshCw, GitCompare } from "lucide-react"
+import type { EvaluationRunRow } from "@/lib/db/schema"
+import { Stethoscope, Clock, ShieldCheck, RefreshCw, GitCompare } from "lucide-react"
 
-export function RunHeader() {
+function formatDuration(ms: number) {
+  const totalSeconds = Math.round(ms / 1000)
+  const minutes = Math.floor(totalSeconds / 60)
+  const seconds = totalSeconds % 60
+  return minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`
+}
+
+function formatTimestamp(date: Date) {
+  return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`
+}
+
+export function RunHeader({ run }: { run: EvaluationRunRow }) {
   return (
     <div className="flex flex-col gap-4 border-b border-border pb-6 lg:flex-row lg:items-end lg:justify-between">
       <div className="space-y-2.5">
         <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
           <span>Evaluations</span>
           <span aria-hidden>/</span>
-          <span className="text-foreground">{evaluation.runId}</span>
+          <span className="text-foreground">{run.id.slice(0, 8)}</span>
           <span className="inline-flex items-center gap-1.5 rounded-md border border-success/25 bg-success/12 px-2 py-0.5 font-medium text-success">
             <span className="size-1.5 rounded-full bg-current" aria-hidden />
             Completed
           </span>
         </div>
         <h1 className="text-pretty text-2xl font-semibold tracking-tight">
-          {evaluation.model}{" "}
-          <span className="font-normal text-muted-foreground">· {evaluation.domain} judge run</span>
+          {run.model}{" "}
+          <span className="font-normal text-muted-foreground">· {run.domain} judge run</span>
         </h1>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-xs text-muted-foreground">
           <span className="inline-flex items-center gap-1.5">
-            <Stethoscope className="size-3.5" /> {evaluation.domain}
+            <Stethoscope className="size-3.5" /> {run.domain}
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <GitBranch className="size-3.5" /> {evaluation.version}
+            <ShieldCheck className="size-3.5" /> Adjudica-Judge (gpt-5-mini)
           </span>
           <span className="inline-flex items-center gap-1.5">
-            <ShieldCheck className="size-3.5" /> {evaluation.judgeModel}
-          </span>
-          <span className="inline-flex items-center gap-1.5">
-            <Clock className="size-3.5" /> {evaluation.duration} · {evaluation.startedAt}
+            <Clock className="size-3.5" /> {formatDuration(run.durationMs)} · {formatTimestamp(run.createdAt)}
           </span>
         </div>
       </div>

@@ -1,4 +1,4 @@
-import { scores } from "@/lib/data"
+import type { ScoreMetric } from "@/lib/data"
 import { ArrowDownRight, ArrowUpRight } from "lucide-react"
 import { cn } from "@/lib/utils"
 
@@ -27,10 +27,10 @@ function Ring({ value, invert }: { value: number; invert?: boolean }) {
   )
 }
 
-export function ScoreCards() {
+export function ScoreCards({ metrics }: { metrics: ScoreMetric[] }) {
   return (
     <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      {scores.map((s) => {
+      {metrics.map((s) => {
         const isHallucination = s.key === "hallucination"
         const good = isHallucination ? s.delta <= 0 : s.delta >= 0
         return (

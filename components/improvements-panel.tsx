@@ -1,4 +1,4 @@
-import { improvements } from "@/lib/data"
+import type { Improvement } from "@/lib/data"
 import { cn } from "@/lib/utils"
 import { Lightbulb, ArrowRight } from "lucide-react"
 
@@ -8,7 +8,7 @@ const severityMeta = {
   minor: "border-border bg-muted text-muted-foreground",
 } as const
 
-export function ImprovementsPanel() {
+export function ImprovementsPanel({ improvements }: { improvements: Improvement[] }) {
   return (
     <section className="rounded-xl border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-4 py-3">

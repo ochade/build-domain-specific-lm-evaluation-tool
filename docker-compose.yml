@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: adjudica
+    ports:
+      - "5433:5432"
+    volumes:
+      - adjudica_postgres_data:/var/lib/postgresql/data
+
+volumes:
+  adjudica_postgres_data:
