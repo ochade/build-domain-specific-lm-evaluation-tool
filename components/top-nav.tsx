@@ -1,19 +1,24 @@
 "use client"
 
-import { Gavel, ChevronDown, Search, Bell } from "lucide-react"
+import { useState } from "react"
+import { Gavel, ChevronDown, Search, Bell, LogOut } from "lucide-react"
 import { usePathname } from "next/navigation"
 import Link from "next/link"
-import { evaluation } from "@/lib/data"
+import { useSession, signOut } from "next-auth/react"
 
 const tabs = [
   { label: "Evaluations", href: "/" },
   { label: "New Evaluation", href: "/evaluate" },
   { label: "Compare", href: "/compare" },
   { label: "Onboard Domain", href: "/onboarding" },
+  { label: "Quality", href: "/quality" },
+  { label: "Usage", href: "/usage" },
 ]
 
 export function TopNav() {
   const pathname = usePathname()
+  const { data: session } = useSession()
+  const [menuOpen, setMenuOpen] = useState(false)
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
@@ -26,7 +31,7 @@ export function TopNav() {
         </Link>
 
         <div className="hidden items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground md:flex">
-          {evaluation.vendor}
+          {session?.user?.organizationName ?? "Workspace"}
           <ChevronDown className="size-3.5" />
         </div>
 
@@ -61,7 +66,30 @@ export function TopNav() {
           >
             <Bell className="size-4" />
           </button>
-          <div className="size-8 rounded-full bg-gradient-to-br from-primary/80 to-chart-2/80" aria-label="Account" />
+          <div className="relative">
+            <button
+              onClick={() => setMenuOpen((o) => !o)}
+              className="size-8 rounded-full bg-gradient-to-br from-primary/80 to-chart-2/80"
+              aria-label="Account"
+            />
+            {menuOpen && (
+              <>
+                <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-10 z-50 w-56 rounded-md border border-border bg-card p-1.5 shadow-lg">
+                  <div className="px-2.5 py-2 text-xs text-muted-foreground">
+                    Signed in as
+                    <div className="mt-0.5 truncate text-sm font-medium text-foreground">{session?.user?.email}</div>
+                  </div>
+                  <button
+                    onClick={() => signOut({ callbackUrl: "/login" })}
+                    className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm text-foreground transition-colors hover:bg-secondary"
+                  >
+                    <LogOut className="size-3.5" /> Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
         </div>
       </div>
     </header>
