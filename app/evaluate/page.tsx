@@ -1,13 +1,15 @@
 "use client"
 
-import { useObject } from "@ai-sdk/react"
-import { useState } from "react"
+import { experimental_useObject as useObject } from "@ai-sdk/react"
+import { Suspense, useEffect, useState } from "react"
+import { useSearchParams } from "next/navigation"
 import { Loader2, Play, Sparkles, AlertCircle } from "lucide-react"
 import { TopNav } from "@/components/top-nav"
 import { LiveResults } from "@/components/live-results"
 import { evaluationResultSchema } from "@/lib/eval-schema"
 
 const sample = {
+  model: "CardioScribe-3B",
   domain: "Clinical Cardiology",
   spec: `Answers target board-certified emergency clinicians. Reasoning must proceed: (1) recognition & triage of the presenting syndrome, (2) diagnostic workup with the correct biomarkers and lead placement, (3) acute reperfusion/intervention ordered by guideline preference, (4) domain-specific contraindications and harm vectors, (5) disposition and secondary prevention. Cite ESC/ACC-AHA standards. Never present second-line therapy as first-line.`,
   prompt:
@@ -16,17 +18,63 @@ const sample = {
   sources: "",
 }
 
-const empty = { domain: "", spec: "", prompt: "", response: "", sources: "" }
+const empty = { model: "", domain: "", spec: "", prompt: "", response: "", sources: "" }
 
-export default function EvaluatePage() {
+interface RegisteredModelSummary {
+  id: string
+  vendor: string
+  model: string
+  domain: string
+  spec: string
+}
+
+export default function EvaluatePageWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <EvaluatePage />
+    </Suspense>
+  )
+}
+
+function EvaluatePage() {
+  const searchParams = useSearchParams()
   const [form, setForm] = useState(empty)
+  const [registeredModels, setRegisteredModels] = useState<RegisteredModelSummary[]>([])
+  const [selectedModelId, setSelectedModelId] = useState<string>("")
   const { object, submit, isLoading, error, stop } = useObject({
     api: "/api/evaluate",
     schema: evaluationResultSchema,
   })
 
+  useEffect(() => {
+    fetch("/api/models")
+      .then((res) => res.json())
+      .then((models: RegisteredModelSummary[]) => setRegisteredModels(models))
+      .catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    const modelId = searchParams.get("model")
+    if (!modelId) return
+    fetch(`/api/models/${modelId}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((m: RegisteredModelSummary | null) => {
+        if (!m) return
+        setSelectedModelId(m.id)
+        setForm((f) => ({ ...f, model: m.model, domain: m.domain, spec: m.spec }))
+      })
+      .catch(() => {})
+  }, [searchParams])
+
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  function selectRegisteredModel(id: string) {
+    setSelectedModelId(id)
+    if (!id) return
+    const m = registeredModels.find((r) => r.id === id)
+    if (m) setForm((f) => ({ ...f, model: m.model, domain: m.domain, spec: m.spec }))
+  }
 
   const canRun = form.prompt.trim() && form.response.trim() && !isLoading
 
@@ -48,7 +96,10 @@ export default function EvaluatePage() {
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Evaluation input</span>
               <button
-                onClick={() => setForm(sample)}
+                onClick={() => {
+                  setSelectedModelId("")
+                  setForm(sample)
+                }}
                 className="inline-flex items-center gap-1.5 rounded-md border border-border px-2.5 py-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 <Sparkles className="size-3.5" />
@@ -56,6 +107,28 @@ export default function EvaluatePage() {
               </button>
             </div>
 
+            <Field label="Registered model" hint="Optional — prefills domain & spec from onboarding">
+              <select
+                value={selectedModelId}
+                onChange={(e) => selectRegisteredModel(e.target.value)}
+                className="input"
+              >
+                <option value="">— Ad-hoc (not registered) —</option>
+                {registeredModels.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.vendor} — {m.model} ({m.domain})
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Model name" hint="Which model produced this response?">
+              <input
+                value={form.model}
+                onChange={set("model")}
+                placeholder="e.g. CardioScribe-3B"
+                className="input"
+              />
+            </Field>
             <Field label="Domain">
               <input
                 value={form.domain}
@@ -73,13 +146,16 @@ export default function EvaluatePage() {
             <Field label="Model response" hint="The output to judge">
               <textarea value={form.response} onChange={set("response")} rows={6} placeholder="Paste the model's response…" className="input resize-y" />
             </Field>
-            <Field label="Reference sources" hint="Optional evidence corpus to ground claims against">
-              <textarea value={form.sources} onChange={set("sources")} rows={3} placeholder="Optional: paste authoritative source text…" className="input resize-y" />
+            <Field
+              label="Additional context (optional, not authoritative)"
+              hint="Authoritative evidence is retrieved automatically from documents ingested for this domain during onboarding. This is just supplementary, unverified text."
+            >
+              <textarea value={form.sources} onChange={set("sources")} rows={3} placeholder="Optional: extra context the judge should be aware of…" className="input resize-y" />
             </Field>
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => submit({ ...form })}
+                onClick={() => submit({ ...form, registeredModelId: selectedModelId || null })}
                 disabled={!canRun}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-opacity disabled:opacity-50"
               >

@@ -1,10 +1,16 @@
 "use client"
 
 import { useState } from "react"
-import { Check, ChevronRight, ChevronLeft, Upload, Loader2, Workflow, AlertCircle } from "lucide-react"
+import { Check, ChevronRight, ChevronLeft, Upload, Loader2, Workflow, AlertCircle, FileText, X } from "lucide-react"
 import { TopNav } from "@/components/top-nav"
 import { cn } from "@/lib/utils"
 import type { DomainMap } from "@/lib/eval-schema"
+
+interface EvidenceDoc {
+  id: string
+  title: string
+  chunkCount: number
+}
 
 const steps = ["Declare domain", "Provide specification", "Derive reasoning map", "Review & confirm"]
 
@@ -18,8 +24,11 @@ export default function OnboardingPage() {
   const [spec, setSpec] = useState("")
   const [fileName, setFileName] = useState("")
   const [map, setMap] = useState<DomainMap | null>(null)
+  const [registeredId, setRegisteredId] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState(false)
+  const [evidenceDocs, setEvidenceDocs] = useState<EvidenceDoc[]>([])
+  const [evidenceUploading, setEvidenceUploading] = useState(false)
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -29,18 +38,49 @@ export default function OnboardingPage() {
     setSpec((prev) => (prev ? `${prev}\n\n${text}` : text))
   }
 
+  async function onEvidenceFiles(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files ?? [])
+    if (files.length === 0 || !domain.trim()) return
+    setEvidenceUploading(true)
+    try {
+      for (const file of files) {
+        const text = await file.text()
+        const res = await fetch("/api/evidence", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ domain, title: file.name, text }),
+        })
+        if (res.ok) {
+          const doc = await res.json()
+          setEvidenceDocs((prev) => [...prev, { id: doc.id, title: file.name, chunkCount: doc.chunkCount ?? 0 }])
+        }
+      }
+    } finally {
+      setEvidenceUploading(false)
+      e.target.value = ""
+    }
+  }
+
+  async function removeEvidenceDoc(id: string) {
+    setEvidenceDocs((prev) => prev.filter((d) => d.id !== id))
+    await fetch(`/api/evidence/${id}`, { method: "DELETE" }).catch(() => {})
+  }
+
   async function derive() {
     setLoading(true)
     setError(false)
     setMap(null)
+    setRegisteredId(null)
     try {
       const res = await fetch("/api/derive-map", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ domain, audience, spec }),
+        body: JSON.stringify({ model, domain, audience, spec }),
       })
       if (!res.ok) throw new Error()
-      setMap((await res.json()) as DomainMap)
+      const { id, ...map } = (await res.json()) as DomainMap & { id: string }
+      setRegisteredId(id)
+      setMap(map)
     } catch {
       setError(true)
     } finally {
@@ -48,7 +88,8 @@ export default function OnboardingPage() {
     }
   }
 
-  const canNext = step === 0 ? domain.trim() && model.trim() : step === 1 ? spec.trim().length > 20 : true
+  const canNext =
+    step === 0 ? domain.trim() && model.trim() : step === 1 ? spec.trim().length > 20 : true
 
   function next() {
     if (step === 1) {
@@ -134,6 +175,40 @@ export default function OnboardingPage() {
                 {fileName ? `Appended: ${fileName}` : "Upload a spec document (.txt, .md) to append"}
                 <input type="file" accept=".txt,.md,.markdown,text/plain" onChange={onFile} className="hidden" />
               </label>
+
+              <Field
+                label="Reference evidence corpus (optional)"
+                hint="Upload guidelines/standards the judge will actually retrieve against when grading responses in this domain — not just appended text."
+              >
+                <label className="flex cursor-pointer items-center gap-2 rounded-md border border-dashed border-border px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:text-foreground">
+                  {evidenceUploading ? <Loader2 className="size-4 animate-spin" /> : <FileText className="size-4" />}
+                  {evidenceUploading ? "Indexing…" : "Upload evidence documents (.txt, .md)"}
+                  <input
+                    type="file"
+                    accept=".txt,.md,.markdown,text/plain"
+                    multiple
+                    onChange={onEvidenceFiles}
+                    disabled={evidenceUploading || !domain.trim()}
+                    className="hidden"
+                  />
+                </label>
+                {evidenceDocs.length > 0 && (
+                  <ul className="mt-2 space-y-1.5">
+                    {evidenceDocs.map((d) => (
+                      <li key={d.id} className="flex items-center justify-between gap-2 rounded-md border border-border bg-secondary/30 px-2.5 py-1.5 text-xs">
+                        <span className="flex items-center gap-1.5 truncate text-foreground/90">
+                          <FileText className="size-3.5 shrink-0 text-muted-foreground" />
+                          {d.title}
+                          <span className="text-muted-foreground">· {d.chunkCount} chunks indexed</span>
+                        </span>
+                        <button onClick={() => removeEvidenceDoc(d.id)} className="shrink-0 text-muted-foreground hover:text-destructive">
+                          <X className="size-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </Field>
             </div>
           )}
 
@@ -201,7 +276,7 @@ export default function OnboardingPage() {
                 <Summary label="Reasoning stages" value={String(map?.stages?.length ?? 0)} />
               </dl>
               <a
-                href="/evaluate"
+                href={registeredId ? `/evaluate?model=${registeredId}` : "/evaluate"}
                 className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground"
               >
                 Run first evaluation <ChevronRight className="size-4" />
