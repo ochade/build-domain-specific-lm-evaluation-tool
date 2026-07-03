@@ -2,10 +2,17 @@ import { generateText, Output } from "ai"
 import { domainMapSchema, type DomainMap } from "@/lib/eval-schema"
 import { insertRegisteredModel } from "@/lib/db/queries"
 import { auth } from "@/lib/auth"
-import { JUDGE_MODEL, JUDGE_FALLBACK_MODEL, JUDGE_TIMEOUT_MS, JUDGE_MAX_RETRIES } from "@/lib/ai/config"
+import { JUDGE_MODEL, JUDGE_FALLBACK_MODEL, JUDGE_TIMEOUT_MS, JUDGE_MAX_RETRIES, RATE_LIMIT_DERIVE_MAP_PER_HOUR } from "@/lib/ai/config"
 import { logLlmCall } from "@/lib/ai/log"
+import { ApiError, handleApiError } from "@/lib/api/errors"
+import { parseJsonBody } from "@/lib/api/parse-request"
+import { deriveMapRequestSchema } from "@/lib/api/schemas"
+import { checkOrgRateLimit, getClientIp } from "@/lib/api/rate-limit"
+import { logAuditEvent } from "@/lib/audit/log"
 
 export const maxDuration = 60
+
+const MAX_BODY_BYTES = 300_000
 
 const SYSTEM = `You are Adjudica's domain-mapping agent. A language-model vendor declares the domain their model specializes in, along with a specificity statement describing how deep and specialized its answers should be.
 
@@ -48,39 +55,54 @@ async function deriveWithModel(model: string, userPrompt: string, organizationId
 }
 
 export async function POST(req: Request) {
-  const session = await auth()
-  if (!session) return Response.json({ error: "Unauthorized" }, { status: 401 })
+  try {
+    const session = await auth()
+    if (!session) throw new ApiError(401, "Unauthorized")
 
-  const { model, domain, audience, spec } = await req.json()
+    const { model, domain, audience, spec } = await parseJsonBody(req, deriveMapRequestSchema, MAX_BODY_BYTES)
 
-  const userPrompt = `DOMAIN: ${domain}
+    await checkOrgRateLimit(session.user.organizationId, "derive-map", {
+      max: RATE_LIMIT_DERIVE_MAP_PER_HOUR,
+      windowMs: 60 * 60 * 1000,
+    })
+
+    const userPrompt = `DOMAIN: ${domain}
 TARGET AUDIENCE / DEPTH LEVEL: ${audience || "(unspecified)"}
 
 VENDOR'S SPECIFICITY DECLARATION:
 ${spec}`
 
-  let output: DomainMap
-  try {
+    let output: DomainMap
     try {
       output = await deriveWithModel(JUDGE_MODEL, userPrompt, session.user.organizationId)
     } catch (primaryErr) {
       if (!JUDGE_FALLBACK_MODEL) throw primaryErr
       output = await deriveWithModel(JUDGE_FALLBACK_MODEL, userPrompt, session.user.organizationId)
     }
+
+    const row = await insertRegisteredModel(session.user.organizationId, {
+      model: model || "Unnamed model",
+      domain,
+      audience: audience || "(unspecified)",
+      spec,
+      map: output,
+    })
+
+    await logAuditEvent({
+      organizationId: session.user.organizationId,
+      userId: session.user.id,
+      action: "model.register",
+      resourceType: "registered_model",
+      resourceId: row.id,
+      ipAddress: getClientIp(req),
+    })
+
+    return Response.json({ id: row.id, ...output })
   } catch (err) {
-    // Never let a raw provider error (e.g. an AbortError from a timeout)
-    // escape uncaught — return a clean, controlled error response instead.
+    if (err instanceof ApiError) return handleApiError(err)
+    // Provider/model failures (e.g. a timeout AbortError) land here — never
+    // let them escape uncaught.
     console.error("derive-map failed:", err)
     return Response.json({ error: "Could not derive the domain map." }, { status: 502 })
   }
-
-  const row = await insertRegisteredModel(session.user.organizationId, {
-    model: model || "Unnamed model",
-    domain,
-    audience: audience || "(unspecified)",
-    spec,
-    map: output,
-  })
-
-  return Response.json({ id: row.id, ...output })
 }

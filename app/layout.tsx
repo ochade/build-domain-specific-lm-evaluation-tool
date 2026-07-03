@@ -51,6 +51,9 @@ export default function RootLayout({
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} bg-background`}>
       <body className="font-sans antialiased">
         <Providers>{children}</Providers>
+        <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-1.5 text-center text-[11px] text-muted-foreground backdrop-blur">
+          Do not submit real patient-identifiable information. Adjudica evaluates AI output for factuality/specificity — it does not provide medical advice.
+        </footer>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>

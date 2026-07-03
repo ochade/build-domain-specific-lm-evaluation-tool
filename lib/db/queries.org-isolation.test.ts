@@ -88,8 +88,8 @@ describe("organization isolation", () => {
 
     const calibrationA = await getCalibrationSummary(orgA.id)
     const calibrationB = await getCalibrationSummary(orgB.id)
-    expect(calibrationA.totalReviewed).toBe(1)
-    expect(calibrationB.totalReviewed).toBe(0)
+    expect(calibrationA.all.totalReviewed).toBe(1)
+    expect(calibrationB.all.totalReviewed).toBe(0)
 
     expect(await getTotalJudgedClaimsCount(orgA.id)).toBe(run.claims.length)
     expect(await getTotalJudgedClaimsCount(orgB.id)).toBe(0)

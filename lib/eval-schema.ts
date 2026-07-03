@@ -45,6 +45,75 @@ export const evaluationResultSchema = z.object({
 export type EvaluationResult = z.infer<typeof evaluationResultSchema>
 export type EvalClaim = z.infer<typeof evalClaimSchema>
 
+// --- Multi-step judge pipeline ---
+// Call 1 (decompose, not shown to the client) splits the response into
+// atomic claims and assigns each a stage name. Call 2 (verify+diagnose,
+// streamed to the client) is given each claim + its own per-claim retrieved
+// evidence, and echoes text/stage back verbatim alongside the verdict
+// fields — keeping the streamed object self-contained so the client-side
+// rendering needs no awareness of the two-call split.
+
+export const decomposeClaimSchema = z.object({
+  id: z.string().describe("Short stable id for this claim, e.g. 'c1', 'c2', assigned sequentially."),
+  text: z.string().describe("The atomic, independently verifiable claim extracted from the response."),
+  stage: z.string().describe("Name of the domain reasoning stage this claim belongs to."),
+})
+
+export const decomposeResultSchema = z.object({
+  claims: z.array(decomposeClaimSchema),
+})
+
+export type DecomposeClaim = z.infer<typeof decomposeClaimSchema>
+export type DecomposeResult = z.infer<typeof decomposeResultSchema>
+
+export const verifyClaimSchema = decomposeClaimSchema.extend({
+  verdict: verdictEnum.describe(
+    "supported = entailed by evidence; hallucinated = contradicts evidence; unsupported = no evidence either way but plausibly wrong/risky; retrieval-gap = correct topic missing from sources, likely a retrieval failure not a fabrication.",
+  ),
+  confidence: z.number().describe("Judge confidence in this claim's verdict, 0-100."),
+  evidence: z.string().describe("The supporting or contradicting evidence span / reasoning the verdict is based on."),
+  rationale: z.string().describe("One-sentence justification for the verdict."),
+})
+
+export const verifyResultSchema = z.object({
+  summary: z.string().describe("A 1-2 sentence verdict summary of the response quality."),
+  specificity: z.number().describe("Domain-appropriate depth & granularity score, 0-100."),
+  claims: z.array(verifyClaimSchema),
+  stages: z.array(evalStageSchema),
+  improvements: z.array(evalImprovementSchema),
+})
+
+export type VerifyClaim = z.infer<typeof verifyClaimSchema>
+export type VerifyResult = z.infer<typeof verifyResultSchema>
+
+export interface DeterministicScores {
+  factuality: number
+  hallucinationRate: number
+  confidence: number
+}
+
+// Computes the trust-critical top-line metrics straight from per-claim
+// verdicts/confidences instead of trusting the LLM's self-report. Shared by
+// the server (authoritative persisted values) and the live-streaming UI
+// (progressive display), so both are always consistent by construction.
+export function computeDeterministicScores(
+  claims: { verdict: string; confidence: number }[],
+): DeterministicScores {
+  if (claims.length === 0) return { factuality: 0, hallucinationRate: 0, confidence: 0 }
+
+  const supported = claims.filter((c) => c.verdict === "supported").length
+  const hallucinatedOrUnsupported = claims.filter(
+    (c) => c.verdict === "hallucinated" || c.verdict === "unsupported",
+  ).length
+  const avgConfidence = claims.reduce((sum, c) => sum + c.confidence, 0) / claims.length
+
+  return {
+    factuality: Math.round((supported / claims.length) * 100),
+    hallucinationRate: Math.round((hallucinatedOrUnsupported / claims.length) * 100),
+    confidence: Math.round(avgConfidence),
+  }
+}
+
 // Schema for deriving a domain reasoning map from a vendor's declared spec.
 export const derivedStageSchema = z.object({
   name: z.string().describe("Concise stage name, e.g. 'Recognition & Triage'."),

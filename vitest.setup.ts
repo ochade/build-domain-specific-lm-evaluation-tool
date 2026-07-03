@@ -15,6 +15,9 @@ beforeEach(async () => {
   const { sql } = await import("drizzle-orm")
   await db.execute(sql`
     TRUNCATE TABLE
+      audit_log,
+      api_keys,
+      invites,
       claim_reviews,
       llm_calls,
       evidence_chunks,

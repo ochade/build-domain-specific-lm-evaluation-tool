@@ -21,6 +21,12 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   passwordHash: text("password_hash").notNull(),
   name: text("name").notNull(),
+  // "owner" | "member" — owners can manage invites and API keys.
+  role: text("role").notNull().default("member"),
+  notificationsSeenAt: timestamp("notifications_seen_at", { withTimezone: true }),
+  // Org-owner-attested only — NOT independently verified against any
+  // licensing/credentialing service. See calibration UI copy for framing.
+  isVerifiedReviewer: boolean("is_verified_reviewer").notNull().default(false),
 })
 
 export type UserRow = typeof users.$inferSelect
@@ -152,3 +158,59 @@ export const claimReviews = pgTable(
 )
 
 export type ClaimReviewRow = typeof claimReviews.$inferSelect
+
+export const auditLog = pgTable("audit_log", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+
+  // "login" | "signup" | "evaluation.create" | "model.register" |
+  // "evidence.upload" | "evidence.delete" | "review.create" | "run.delete" | "data.export"
+  action: text("action").notNull(),
+  resourceType: text("resource_type"),
+  resourceId: text("resource_id"),
+  metadata: jsonb("metadata").$type<Record<string, unknown> | null>(),
+  ipAddress: text("ip_address"),
+})
+
+export type AuditLogRow = typeof auditLog.$inferSelect
+
+export const apiKeys = pgTable("api_keys", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  createdByUserId: uuid("created_by_user_id").references(() => users.id, { onDelete: "set null" }),
+
+  name: text("name").notNull(),
+  keyHash: text("key_hash").notNull().unique(),
+  keyPrefix: text("key_prefix").notNull(),
+  lastUsedAt: timestamp("last_used_at", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+})
+
+export type ApiKeyRow = typeof apiKeys.$inferSelect
+
+export const invites = pgTable("invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+
+  organizationId: uuid("organization_id")
+    .notNull()
+    .references(() => organizations.id, { onDelete: "cascade" }),
+  invitedByUserId: uuid("invited_by_user_id").references(() => users.id, { onDelete: "set null" }),
+
+  email: text("email").notNull(),
+  role: text("role").notNull().default("member"),
+  token: text("token").notNull().unique(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+})
+
+export type InviteRow = typeof invites.$inferSelect

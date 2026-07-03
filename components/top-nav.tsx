@@ -1,24 +1,30 @@
 "use client"
 
 import { useState } from "react"
-import { Gavel, ChevronDown, Search, Bell, LogOut } from "lucide-react"
-import { usePathname } from "next/navigation"
+import { Gavel, ChevronDown, Search, LogOut } from "lucide-react"
+import { usePathname, useRouter } from "next/navigation"
 import Link from "next/link"
 import { useSession, signOut } from "next-auth/react"
+import { NotificationsBell } from "@/components/notifications-bell"
 
 const tabs = [
   { label: "Evaluations", href: "/" },
   { label: "New Evaluation", href: "/evaluate" },
   { label: "Compare", href: "/compare" },
   { label: "Onboard Domain", href: "/onboarding" },
+  { label: "Models", href: "/models" },
   { label: "Quality", href: "/quality" },
   { label: "Usage", href: "/usage" },
+  { label: "Data", href: "/data" },
+  { label: "Audit Log", href: "/audit-log" },
 ]
 
 export function TopNav() {
   const pathname = usePathname()
+  const router = useRouter()
   const { data: session } = useSession()
   const [menuOpen, setMenuOpen] = useState(false)
+  const isOwner = session?.user?.role === "owner"
 
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-background/80 backdrop-blur">
@@ -36,7 +42,7 @@ export function TopNav() {
         </div>
 
         <nav className="ml-2 hidden items-center gap-1 lg:flex">
-          {tabs.map((tab) => {
+          {[...tabs, ...(isOwner ? [{ label: "Admin", href: "/admin" }] : [])].map((tab) => {
             const active = tab.href === "/" ? pathname === "/" : pathname.startsWith(tab.href)
             return (
               <Link
@@ -55,17 +61,15 @@ export function TopNav() {
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
-          <button className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:flex">
+          <button
+            onClick={() => router.push("/data")}
+            className="hidden items-center gap-2 rounded-md border border-border px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:text-foreground sm:flex"
+          >
             <Search className="size-3.5" />
             <span>Search runs</span>
             <kbd className="rounded border border-border bg-muted px-1 font-mono text-[10px]">⌘K</kbd>
           </button>
-          <button
-            className="flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-            aria-label="Notifications"
-          >
-            <Bell className="size-4" />
-          </button>
+          <NotificationsBell />
           <div className="relative">
             <button
               onClick={() => setMenuOpen((o) => !o)}

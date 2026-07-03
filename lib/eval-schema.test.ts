@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest"
-import { evaluationResultSchema, domainMapSchema } from "@/lib/eval-schema"
+import {
+  evaluationResultSchema,
+  domainMapSchema,
+  decomposeResultSchema,
+  verifyResultSchema,
+  computeDeterministicScores,
+} from "@/lib/eval-schema"
 
 describe("evaluationResultSchema", () => {
   const validResult = {
@@ -67,5 +73,78 @@ describe("domainMapSchema", () => {
       stages: [{ name: "Triage", description: "desc" }],
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe("decomposeResultSchema", () => {
+  it("accepts a valid decompose result", () => {
+    const result = decomposeResultSchema.safeParse({
+      claims: [{ id: "c1", text: "A claim.", stage: "Triage" }],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects a claim missing an id", () => {
+    const result = decomposeResultSchema.safeParse({
+      claims: [{ text: "A claim.", stage: "Triage" }],
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("verifyResultSchema", () => {
+  it("accepts a valid verify result and does not require top-level factuality/hallucinationRate/confidence", () => {
+    const result = verifyResultSchema.safeParse({
+      summary: "A summary.",
+      specificity: 70,
+      claims: [
+        { id: "c1", text: "A claim.", stage: "Triage", verdict: "supported", confidence: 90, evidence: "[E1]", rationale: "because" },
+      ],
+      stages: [{ name: "Triage", coverage: 90, status: "strong", note: "good" }],
+      improvements: [],
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("rejects an invalid verdict enum value", () => {
+    const result = verifyResultSchema.safeParse({
+      summary: "A summary.",
+      specificity: 70,
+      claims: [
+        { id: "c1", text: "A claim.", stage: "Triage", verdict: "definitely-true", confidence: 90, evidence: "[E1]", rationale: "because" },
+      ],
+      stages: [],
+      improvements: [],
+    })
+    expect(result.success).toBe(false)
+  })
+})
+
+describe("computeDeterministicScores", () => {
+  it("returns zeros for an empty claim list", () => {
+    expect(computeDeterministicScores([])).toEqual({ factuality: 0, hallucinationRate: 0, confidence: 0 })
+  })
+
+  it("computes factuality as the share of supported claims", () => {
+    const claims = [
+      { verdict: "supported", confidence: 90 },
+      { verdict: "supported", confidence: 80 },
+      { verdict: "unsupported", confidence: 60 },
+      { verdict: "hallucinated", confidence: 70 },
+    ]
+    const scores = computeDeterministicScores(claims)
+    expect(scores.factuality).toBe(50) // 2/4
+    expect(scores.hallucinationRate).toBe(50) // hallucinated + unsupported = 2/4
+    expect(scores.confidence).toBe(75) // average of 90,80,60,70
+  })
+
+  it("treats retrieval-gap as neither factual nor hallucinated", () => {
+    const claims = [
+      { verdict: "supported", confidence: 100 },
+      { verdict: "retrieval-gap", confidence: 50 },
+    ]
+    const scores = computeDeterministicScores(claims)
+    expect(scores.factuality).toBe(50)
+    expect(scores.hallucinationRate).toBe(0)
   })
 })

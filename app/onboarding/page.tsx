@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { Check, ChevronRight, ChevronLeft, Upload, Loader2, Workflow, AlertCircle, FileText, X } from "lucide-react"
 import { TopNav } from "@/components/top-nav"
+import { ComplianceNotice } from "@/components/compliance-notice"
 import { cn } from "@/lib/utils"
 import type { DomainMap } from "@/lib/eval-schema"
 
@@ -164,6 +165,7 @@ export default function OnboardingPage() {
 
           {step === 1 && (
             <div className="space-y-4">
+              <ComplianceNotice />
               <Field
                 label="Specificity declaration"
                 hint="Describe how your model reasons, the depth it targets, terminology, rules, and what a correct answer must contain."

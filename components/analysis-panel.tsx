@@ -12,6 +12,8 @@ interface ClaimReview {
   humanVerdict: Verdict
   agrees: boolean
   note: string | null
+  reviewerName: string | null
+  reviewerVerified: boolean | null
 }
 
 const verdictOptions = Object.keys(verdictMeta) as Verdict[]
@@ -68,11 +70,10 @@ export function AnalysisPanel({
         body: JSON.stringify({ runId, claimId: active.id, humanVerdict, note: note || null }),
       })
       if (res.ok) {
-        const saved = await res.json()
-        setReviews((prev) => ({
-          ...prev,
-          [active.id]: { claimId: active.id, humanVerdict: saved.humanVerdict, agrees: saved.agrees, note: saved.note },
-        }))
+        // Refetch (rather than merge the POST response locally) so the
+        // reviewer name/verified badge reflects the real joined data.
+        const rows: ClaimReview[] = await fetch(`/api/reviews?runId=${runId}`).then((r) => r.json())
+        setReviews(Object.fromEntries(rows.map((r) => [r.claimId, r])))
         setOverrideVerdict("")
         setNote("")
       }
@@ -200,17 +201,32 @@ export function AnalysisPanel({
                   <UserCheck className="size-3.5" /> Human review
                 </p>
                 {activeReview ? (
-                  <div
-                    className={cn(
-                      "mt-2 flex items-center gap-1.5 text-xs font-medium",
-                      activeReview.agrees ? "text-success" : "text-destructive",
+                  <div className="mt-2 space-y-1">
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5 text-xs font-medium",
+                        activeReview.agrees ? "text-success" : "text-destructive",
+                      )}
+                    >
+                      {activeReview.agrees ? <Check className="size-3.5" /> : <X className="size-3.5" />}
+                      {activeReview.agrees
+                        ? "Confirmed — human agrees with the judge"
+                        : `Overridden — human says "${verdictMeta[activeReview.humanVerdict].label}"`}
+                      {activeReview.note && <span className="text-muted-foreground">· {activeReview.note}</span>}
+                    </div>
+                    {activeReview.reviewerName && (
+                      <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span>Reviewed by {activeReview.reviewerName}</span>
+                        {activeReview.reviewerVerified && (
+                          <span
+                            className="inline-flex items-center gap-1 rounded bg-secondary px-1.5 py-0.5 text-success"
+                            title="Org-attested only — not independently verified against any licensing service."
+                          >
+                            <ShieldCheck className="size-3" /> Verified reviewer
+                          </span>
+                        )}
+                      </div>
                     )}
-                  >
-                    {activeReview.agrees ? <Check className="size-3.5" /> : <X className="size-3.5" />}
-                    {activeReview.agrees
-                      ? "Confirmed — human agrees with the judge"
-                      : `Overridden — human says "${verdictMeta[activeReview.humanVerdict].label}"`}
-                    {activeReview.note && <span className="text-muted-foreground">· {activeReview.note}</span>}
                   </div>
                 ) : (
                   <div className="mt-2 space-y-2">

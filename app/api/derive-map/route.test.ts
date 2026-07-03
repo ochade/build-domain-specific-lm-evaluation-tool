@@ -2,15 +2,19 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 
 // Mocks are hoisted above imports by Vitest; vi.hoisted() lets us declare the
 // mock fns referenced inside the (also hoisted) vi.mock factories below.
-const { authMock, insertRegisteredModelMock, logLlmCallMock, generateTextMock } = vi.hoisted(() => ({
+const { authMock, insertRegisteredModelMock, countLlmCallsSinceMock, logLlmCallMock, generateTextMock } = vi.hoisted(() => ({
   authMock: vi.fn(),
   insertRegisteredModelMock: vi.fn(),
+  countLlmCallsSinceMock: vi.fn(),
   logLlmCallMock: vi.fn(),
   generateTextMock: vi.fn(),
 }))
 
 vi.mock("@/lib/auth", () => ({ auth: authMock }))
-vi.mock("@/lib/db/queries", () => ({ insertRegisteredModel: insertRegisteredModelMock }))
+vi.mock("@/lib/db/queries", () => ({
+  insertRegisteredModel: insertRegisteredModelMock,
+  countLlmCallsSince: countLlmCallsSinceMock,
+}))
 vi.mock("@/lib/ai/log", () => ({ logLlmCall: logLlmCallMock }))
 vi.mock("ai", async (importOriginal) => {
   const original = await importOriginal<typeof import("ai")>()
@@ -18,6 +22,7 @@ vi.mock("ai", async (importOriginal) => {
 })
 
 const fakeSession = { user: { id: "u1", organizationId: "org-1", organizationName: "Org", email: "a@b.com" } }
+const validSpec = "A sufficiently long domain specification for testing purposes."
 
 function makeRequest(body: object) {
   return new Request("http://localhost/api/derive-map", { method: "POST", body: JSON.stringify(body) })
@@ -30,6 +35,7 @@ async function loadRoute(fallbackModel = "") {
     JUDGE_FALLBACK_MODEL: fallbackModel,
     JUDGE_TIMEOUT_MS: 1000,
     JUDGE_MAX_RETRIES: 0,
+    RATE_LIMIT_DERIVE_MAP_PER_HOUR: 10,
   }))
   const mod = await import("@/app/api/derive-map/route")
   return mod.POST
@@ -38,6 +44,7 @@ async function loadRoute(fallbackModel = "") {
 beforeEach(() => {
   vi.clearAllMocks()
   insertRegisteredModelMock.mockResolvedValue({ id: "model-1" })
+  countLlmCallsSinceMock.mockResolvedValue(0)
 })
 
 describe("POST /api/derive-map", () => {
@@ -45,9 +52,30 @@ describe("POST /api/derive-map", () => {
     authMock.mockResolvedValue(null)
     const POST = await loadRoute()
 
-    const res = await POST(makeRequest({ domain: "Cardiology", spec: "spec" }))
+    const res = await POST(makeRequest({ domain: "Cardiology", spec: validSpec }))
 
     expect(res.status).toBe(401)
+    expect(generateTextMock).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 and never calls the model when the spec is too short", async () => {
+    authMock.mockResolvedValue(fakeSession)
+    const POST = await loadRoute()
+
+    const res = await POST(makeRequest({ domain: "Cardiology", spec: "too short" }))
+
+    expect(res.status).toBe(400)
+    expect(generateTextMock).not.toHaveBeenCalled()
+  })
+
+  it("returns 429 and never calls the model when the org is over its rate limit", async () => {
+    authMock.mockResolvedValue(fakeSession)
+    countLlmCallsSinceMock.mockResolvedValue(10) // == RATE_LIMIT_DERIVE_MAP_PER_HOUR
+    const POST = await loadRoute()
+
+    const res = await POST(makeRequest({ domain: "Cardiology", spec: validSpec }))
+
+    expect(res.status).toBe(429)
     expect(generateTextMock).not.toHaveBeenCalled()
   })
 
@@ -59,7 +87,7 @@ describe("POST /api/derive-map", () => {
     })
     const POST = await loadRoute()
 
-    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: "spec" }))
+    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: validSpec }))
     const body = await res.json()
 
     expect(res.status).toBe(200)
@@ -76,7 +104,7 @@ describe("POST /api/derive-map", () => {
       .mockResolvedValueOnce({ usage: { inputTokens: 5, outputTokens: 5 }, output: { domainSummary: "s", stages: [] } })
     const POST = await loadRoute("fallback-model")
 
-    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: "spec" }))
+    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: validSpec }))
 
     expect(res.status).toBe(200)
     expect(generateTextMock).toHaveBeenCalledTimes(2)
@@ -94,7 +122,7 @@ describe("POST /api/derive-map", () => {
     generateTextMock.mockRejectedValue(new Error("timed out"))
     const POST = await loadRoute("") // no fallback configured
 
-    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: "spec" }))
+    const res = await POST(makeRequest({ model: "TestModel", domain: "Cardiology", spec: validSpec }))
 
     expect(res.status).toBe(502)
     expect(generateTextMock).toHaveBeenCalledTimes(1)

@@ -1,6 +1,7 @@
 "use client"
 
-import type { EvaluationResult } from "@/lib/eval-schema"
+import type { VerifyResult } from "@/lib/eval-schema"
+import { computeDeterministicScores } from "@/lib/eval-schema"
 import type { Verdict } from "@/lib/data"
 import { VerdictBadge } from "@/components/verdict-badge"
 import { cn } from "@/lib/utils"
@@ -29,11 +30,19 @@ function Metric({ label, value, suffix = "" }: { label: string; value?: number; 
   )
 }
 
-export function LiveResults({ result }: { result: Partial<EvaluationResult> | undefined }) {
+export function LiveResults({ result }: { result: Partial<VerifyResult> | undefined }) {
   if (!result) return null
   const claims = (result.claims ?? []).filter(Boolean)
   const stages = (result.stages ?? []).filter(Boolean)
   const improvements = (result.improvements ?? []).filter(Boolean)
+
+  // Factuality/hallucination rate/confidence are computed deterministically
+  // from verdicts, not self-reported by the LLM — so they're only counted
+  // once a claim actually has a verdict, and update live as claims stream in.
+  const verifiedClaims = claims
+    .filter((c) => c?.verdict != null && c?.confidence != null)
+    .map((c) => ({ verdict: c!.verdict!, confidence: c!.confidence! }))
+  const scores = computeDeterministicScores(verifiedClaims)
 
   return (
     <div className="space-y-6">
@@ -44,10 +53,10 @@ export function LiveResults({ result }: { result: Partial<EvaluationResult> | un
       )}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Factuality" value={result.factuality} />
+        <Metric label="Factuality" value={verifiedClaims.length ? scores.factuality : undefined} />
         <Metric label="Specificity" value={result.specificity} />
-        <Metric label="Hallucination Rate" value={result.hallucinationRate} suffix="%" />
-        <Metric label="Judge Confidence" value={result.confidence} suffix="%" />
+        <Metric label="Hallucination Rate" value={verifiedClaims.length ? scores.hallucinationRate : undefined} suffix="%" />
+        <Metric label="Judge Confidence" value={verifiedClaims.length ? scores.confidence : undefined} suffix="%" />
       </div>
 
       {claims.length > 0 && (

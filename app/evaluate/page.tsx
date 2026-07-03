@@ -5,8 +5,9 @@ import { Suspense, useEffect, useState } from "react"
 import { useSearchParams } from "next/navigation"
 import { Loader2, Play, Sparkles, AlertCircle } from "lucide-react"
 import { TopNav } from "@/components/top-nav"
+import { ComplianceNotice } from "@/components/compliance-notice"
 import { LiveResults } from "@/components/live-results"
-import { evaluationResultSchema } from "@/lib/eval-schema"
+import { verifyResultSchema } from "@/lib/eval-schema"
 
 const sample = {
   model: "CardioScribe-3B",
@@ -22,10 +23,35 @@ const empty = { model: "", domain: "", spec: "", prompt: "", response: "", sourc
 
 interface RegisteredModelSummary {
   id: string
-  vendor: string
   model: string
   domain: string
   spec: string
+}
+
+// useObject throws `new Error(await response.text())` for any non-2xx
+// response, so the raw JSON body our routes return ({ error, details? })
+// is sitting in `error.message` as a string. Parse it back out so we can
+// show the server's actual message instead of one generic string.
+function describeEvaluateError(error: Error): string {
+  try {
+    const body = JSON.parse(error.message) as { error?: string; details?: { message?: string }[] }
+    if (body?.error === "Unauthorized") {
+      return "Your session has expired. Please sign in again."
+    }
+    if (body?.error?.startsWith("Rate limit reached")) {
+      return body.error
+    }
+    if (body?.error === "Invalid request body." && body.details?.length) {
+      return `Check your input: ${body.details.map((d) => d.message).join("; ")}`
+    }
+    if (body?.error) {
+      return body.error
+    }
+  } catch {
+    // error.message wasn't JSON — likely a stream-level failure after the
+    // response had already started (e.g. the model/provider failed mid-call).
+  }
+  return "The judge encountered an error while evaluating — this may be a temporary model/provider issue. Please try again."
 }
 
 export default function EvaluatePageWrapper() {
@@ -43,7 +69,7 @@ function EvaluatePage() {
   const [selectedModelId, setSelectedModelId] = useState<string>("")
   const { object, submit, isLoading, error, stop } = useObject({
     api: "/api/evaluate",
-    schema: evaluationResultSchema,
+    schema: verifyResultSchema,
   })
 
   useEffect(() => {
@@ -93,6 +119,7 @@ function EvaluatePage() {
         <div className="grid gap-6 lg:grid-cols-12">
           {/* Input */}
           <div className="space-y-4 lg:col-span-5">
+            <ComplianceNotice />
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium">Evaluation input</span>
               <button
@@ -116,7 +143,7 @@ function EvaluatePage() {
                 <option value="">— Ad-hoc (not registered) —</option>
                 {registeredModels.map((m) => (
                   <option key={m.id} value={m.id}>
-                    {m.vendor} — {m.model} ({m.domain})
+                    {m.model} ({m.domain})
                   </option>
                 ))}
               </select>
@@ -174,8 +201,8 @@ function EvaluatePage() {
           <div className="lg:col-span-7">
             {error && (
               <div className="flex items-center gap-2 rounded-lg border border-destructive/25 bg-destructive/10 p-4 text-sm text-destructive">
-                <AlertCircle className="size-4" />
-                Evaluation failed. Check that the AI Gateway is configured, then try again.
+                <AlertCircle className="size-4 shrink-0" />
+                {describeEvaluateError(error)}
               </div>
             )}
             {!object && !isLoading && !error && (

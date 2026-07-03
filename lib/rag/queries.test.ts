@@ -64,6 +64,24 @@ describe("ingestDocument / retrieveEvidence (real pgvector, mocked embeddings)",
     expect(results[1].documentTitle).toBe("Irrelevant Doc")
   })
 
+  it("offsets tags so multiple per-claim retrievals in the same run don't collide", async () => {
+    const org = await createTestOrg()
+    const text = "Some guideline text."
+    textToVector.set(text, oneHotVector(0))
+    await ingestDocument(org.id, "Cardiology", "Doc", text)
+
+    const query = "query"
+    textToVector.set(query, oneHotVector(0))
+
+    const firstClaimEvidence = await retrieveEvidence(org.id, "Cardiology", query, 4, 0)
+    const secondClaimEvidence = await retrieveEvidence(org.id, "Cardiology", query, 4, 4)
+
+    expect(firstClaimEvidence[0].tag).toBe("E1")
+    expect(secondClaimEvidence[0].tag).toBe("E5")
+    const allTags = [...firstClaimEvidence, ...secondClaimEvidence].map((e) => e.tag)
+    expect(new Set(allTags).size).toBe(allTags.length) // no collisions
+  })
+
   it("scopes retrieval by domain — a chunk ingested under a different domain is not returned", async () => {
     const org = await createTestOrg()
     const text = "Cardiology-specific content."

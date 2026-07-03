@@ -6,22 +6,27 @@ function buildSteps(run: EvaluationRunRow) {
     {
       phase: "Decompose",
       action: `Atomized the response into ${run.claims.length} claims`,
-      detail: "Broke the model response into atomic, independently verifiable claims.",
+      detail: "A first model call split the response into atomic, independently verifiable claims — no judgment yet.",
+    },
+    {
+      phase: "Retrieve",
+      action: "Retrieved evidence for each claim separately",
+      detail: "A real vector search ran once per claim against the domain's ingested reference documents, not once for the whole response.",
     },
     {
       phase: "Verify",
-      action: "Ran entailment checks against domain evidence",
-      detail: "Classified each claim as supported, hallucinated, unsupported, or a retrieval gap.",
-    },
-    {
-      phase: "Score",
-      action: `Mapped claims to ${run.stages.length} reasoning stages`,
-      detail: "Computed per-stage coverage against the declared domain specification.",
+      action: "Ran entailment checks against each claim's own evidence",
+      detail: "A second model call classified each claim as supported, hallucinated, unsupported, or a retrieval gap, citing only the evidence retrieved for that specific claim.",
     },
     {
       phase: "Diagnose",
       action: `Produced ${run.improvements.length} improvement recommendations`,
-      detail: "Generated prioritized, root-cause-tagged fixes for the vendor.",
+      detail: "The same verification call mapped claims to reasoning stages and generated prioritized, root-cause-tagged fixes for the vendor.",
+    },
+    {
+      phase: "Score",
+      action: `Computed factuality, hallucination rate, and confidence from ${run.claims.length} verdicts`,
+      detail: "These top-line numbers are computed deterministically from the verdicts above, not self-reported by the model.",
     },
   ]
 }

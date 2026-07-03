@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest"
 import { createTestOrg, createTestUser, makeEvaluationResult } from "@/lib/db/test-helpers"
-import { insertRun, upsertClaimReview, listClaimReviews, getCalibrationSummary } from "@/lib/db/queries"
+import { insertRun, upsertClaimReview, listClaimReviews, getCalibrationSummary, setReviewerVerified } from "@/lib/db/queries"
 
 async function setupRunWithClaim(orgId: string, confidence = 90) {
   const run = await insertRun(orgId, {
@@ -90,7 +90,7 @@ describe("getCalibrationSummary", () => {
     await upsertClaimReview(org.id, user.id, { runId: b.run.id, claimId: b.claimId, humanVerdict: "hallucinated", note: null }) // disagrees
     await upsertClaimReview(org.id, user.id, { runId: c.run.id, claimId: c.claimId, humanVerdict: "supported", note: null }) // agrees
 
-    const summary = await getCalibrationSummary(org.id)
+    const { all: summary } = await getCalibrationSummary(org.id)
     expect(summary.totalReviewed).toBe(3)
     expect(summary.overallAgreementRate).toBe(67) // 2/3 rounded
 
@@ -101,5 +101,35 @@ describe("getCalibrationSummary", () => {
     const lowConfBucket = summary.buckets.find((b) => b.label === "0-59%")!
     expect(lowConfBucket.count).toBe(1)
     expect(lowConfBucket.agreementRate).toBe(100)
+  })
+
+  it("segments agreement rate by verified vs. unverified reviewers", async () => {
+    const org = await createTestOrg()
+    const verifiedReviewer = await createTestUser(org.id, "verified@test.dev")
+    const unverifiedReviewer = await createTestUser(org.id, "unverified@test.dev")
+    await setReviewerVerified(org.id, verifiedReviewer.id, true)
+
+    const a = await setupRunWithClaim(org.id, 95)
+    const b = await setupRunWithClaim(org.id, 95)
+
+    await upsertClaimReview(org.id, verifiedReviewer.id, {
+      runId: a.run.id,
+      claimId: a.claimId,
+      humanVerdict: "supported",
+      note: null,
+    }) // agrees
+    await upsertClaimReview(org.id, unverifiedReviewer.id, {
+      runId: b.run.id,
+      claimId: b.claimId,
+      humanVerdict: "hallucinated",
+      note: null,
+    }) // disagrees
+
+    const { all, verifiedOnly } = await getCalibrationSummary(org.id)
+    expect(all.totalReviewed).toBe(2)
+    expect(all.overallAgreementRate).toBe(50)
+
+    expect(verifiedOnly.totalReviewed).toBe(1)
+    expect(verifiedOnly.overallAgreementRate).toBe(100)
   })
 })

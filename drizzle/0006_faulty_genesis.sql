@@ -1,0 +1,1 @@
+ALTER TABLE "users" ADD COLUMN "is_verified_reviewer" boolean DEFAULT false NOT NULL;

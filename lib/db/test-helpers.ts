@@ -7,7 +7,11 @@ export async function createTestOrg(name = "Test Org") {
   return org
 }
 
-export async function createTestUser(organizationId: string, email = `user-${crypto.randomUUID()}@test.dev`) {
+export async function createTestUser(
+  organizationId: string,
+  email = `user-${crypto.randomUUID()}@test.dev`,
+  role: "owner" | "member" = "member",
+) {
   const [user] = await db
     .insert(users)
     .values({
@@ -15,6 +19,7 @@ export async function createTestUser(organizationId: string, email = `user-${cry
       email,
       name: "Test User",
       passwordHash: "not-a-real-hash",
+      role,
     })
     .returning()
   return user
