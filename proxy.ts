@@ -8,6 +8,12 @@ export default auth((req) => {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
+  // A cold, unauthenticated visit to the root should land on the marketing
+  // page (explains what this is) rather than a bare login form.
+  if (req.nextUrl.pathname === "/") {
+    return NextResponse.redirect(new URL("/welcome", req.nextUrl.origin))
+  }
+
   const url = new URL("/login", req.nextUrl.origin)
   url.searchParams.set("callbackUrl", req.nextUrl.pathname)
   return NextResponse.redirect(url)
