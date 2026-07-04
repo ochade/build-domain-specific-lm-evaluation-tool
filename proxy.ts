@@ -25,8 +25,10 @@ export const config = {
   // this proxy only knows about session auth, so it can't gate that route.
   // /api/invites/accept and /invite/[token] are public, token-authenticated
   // routes (the invitee has no account/session yet).
-  // /welcome is the public marketing landing page.
+  // /welcome is the public marketing landing page. Static assets under
+  // /public (images, etc.) are excluded by extension so they're never
+  // caught by the auth gate.
   matcher: [
-    "/((?!api/auth|api/signup|api/evaluate|api/invites/accept|invite/|login|signup|welcome|_next/static|_next/image|favicon.ico|icon|apple-icon).*)",
+    "/((?!api/auth|api/signup|api/evaluate|api/invites/accept|invite/|login|signup|welcome|_next/static|_next/image|favicon.ico|icon|apple-icon|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico)$).*)",
   ],
 }
